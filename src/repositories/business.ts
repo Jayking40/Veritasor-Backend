@@ -107,7 +107,7 @@ export async function list(options: BusinessListOptions): Promise<PaginatedBusin
   values.push(limit + 1);
   const limitIdx = values.length;
   
-  const result = await dbClient.query<BusinessRow>(
+  const result = await dbClient.query(
     `
       SELECT id, user_id, name, email, industry, description, website, created_at, updated_at
       FROM businesses
@@ -119,7 +119,7 @@ export async function list(options: BusinessListOptions): Promise<PaginatedBusin
   );
   
   const hasMore = result.rows.length > limit;
-  const rowsToReturn = hasMore ? result.rows.slice(0, limit) : result.rows;
+  const rowsToReturn = hasMore ? (result.rows as BusinessRow[]).slice(0, limit) : (result.rows as BusinessRow[]);
   const items = rowsToReturn.map(toBusiness);
   
   let nextCursor: string | undefined;
