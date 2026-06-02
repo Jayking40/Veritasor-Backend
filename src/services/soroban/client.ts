@@ -1,6 +1,10 @@
 import { Networks, rpc, StrKey } from "@stellar/stellar-sdk";
 import { logger } from "../../utils/logger.js";
-import { traceSorobanRpcAttempt } from "../../tracing.js";
+import { config } from "../../config/index.js";
+import {
+  SorobanRetryBudgetExceededError,
+  sorobanRetryBudget,
+} from "./retry-budget.js";
 
 export type SorobanClientConfig = {
   rpcUrl: string;
@@ -540,6 +544,16 @@ export async function executeSorobanRequest<T>(
         return result;
       }
 
+      if (!sorobanRetryBudget.canRetry()) {
+        const currentRetryCount = sorobanRetryBudget.getRetryCount();
+        throw new SorobanRetryBudgetExceededError(
+          currentRetryCount,
+          config.soroban.retryBudgetMaxRetries,
+        );
+      }
+
+      sorobanRetryBudget.recordRetry(options.operationName);
+
       const delayMs = calculateRetryDelay(attempt, policy, random);
       hooks?.onRetry?.(options.operationName, attempt, delayMs, null);
 
@@ -564,6 +578,16 @@ export async function executeSorobanRequest<T>(
         hooks?.onRequestFailure?.(options.operationName, attempt, duration, error);
         throw error;
       }
+
+      if (!sorobanRetryBudget.canRetry()) {
+        const currentRetryCount = sorobanRetryBudget.getRetryCount();
+        throw new SorobanRetryBudgetExceededError(
+          currentRetryCount,
+          config.soroban.retryBudgetMaxRetries,
+        );
+      }
+
+      sorobanRetryBudget.recordRetry(options.operationName);
 
       const delayMs = calculateRetryDelay(attempt, policy, random);
       hooks?.onRetry?.(options.operationName, attempt, delayMs, error);
